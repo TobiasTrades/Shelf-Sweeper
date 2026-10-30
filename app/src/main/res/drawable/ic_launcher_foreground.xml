@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- a gold price tag with a punch hole -->
+    <path
+        android:fillColor="#D4A64A"
+        android:pathData="M38,34 L58,34 L78,54 L58,74 L38,74 Q34,74 34,70 L34,38 Q34,34 38,34 Z" />
+    <path
+        android:fillColor="#0F1B2D"
+        android:pathData="M45,50 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+</vector>

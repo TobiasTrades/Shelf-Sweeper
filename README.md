@@ -10,6 +10,17 @@ A thrift-store and garage-sale scanner for Android. Point the camera at a shelf 
 
 New builds install over the old one and keep your data.
 
+## iPhone
+
+The iPhone version is a web app served from the `docs` folder with GitHub Pages: https://tobiastrades.github.io/Shelf-Sweeper/
+
+1. Open that link in **Safari**.
+2. Tap **Share → Add to Home Screen**. It opens full-screen like an app.
+3. Allow the camera, then tap **Settings** and paste your Claude API key.
+
+Live camera scanning, lot tags, item cards, Shelves and Receipt all work. iPhones don't let web apps vibrate, so alerts use a sound and a pop-up instead.
+Your API key and scans are stored only in Safari on that phone.
+
 ## How it's built
 
 A GitHub Action builds the app on every push to `main` and publishes the APK as a release.

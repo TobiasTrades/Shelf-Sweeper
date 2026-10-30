@@ -1,0 +1,1320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Shelf Sweeper</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shelf Sweeper">
+<meta name="theme-color" content="#0f1b2d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Mulish:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: phone app with three views (Scan viewfinder, Shelves history, Receipt log), an item card that opens over any of them, and a camera dock fixed at the bottom.
+   Look: "Appraiser", one deliberate dark look: navy ground, gold for value, ivory text, serif figures, items as numbered lots. */
+:root{
+  --bg:#0f1b2d; --soft:#16263d; --line:#23344f; --ink:#f3ead8; --muted:#8a97ab;
+  --accent:#d4a64a; --accent-ink:#0f1b2d; --accent-soft:rgba(212,166,74,.14);
+  --good:#8fc4a0; --good-soft:rgba(143,196,160,.14); --steady:#d9b26a; --steady-soft:rgba(217,178,106,.14);
+  --check:#a9c3df; --check-soft:rgba(169,195,223,.13); --bad:#e08a7e; --bad-soft:rgba(224,138,126,.13);
+  --stage:#0b1524; --stage-2:#1a2a40; --paper:#f3ead8; --paper-edge:#0b1524;
+  --shadow:0 14px 36px rgba(0,0,0,.55);
+  --f-ui:"Mulish",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-serif:"DM Serif Display",Georgia,"Times New Roman",serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%}
+body{margin:0;font-size:14px}
+img{max-width:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:640px;margin:0 auto}
+.muted{color:var(--muted)}
+
+/* ---------- header ---------- */
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:8;background:var(--bg);border-bottom:1px solid var(--line)}
+header.bar .wrap{padding-block:10px;display:grid;gap:10px}
+.top{display:flex;align-items:center;gap:10px}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);flex:0 0 auto}
+.logo svg{width:16px;height:16px}
+.top h1{margin:0;font-size:17px;font-weight:800;letter-spacing:-.01em}
+.top .sp{flex:1}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);background:var(--soft);border:0;border-radius:999px;padding:5px 10px}
+.status.busy{color:var(--check);background:var(--check-soft)}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--bg);display:grid;place-items:center;flex:0 0 auto}
+.iconbtn svg{width:18px;height:18px}
+.tabs{display:flex;background:var(--soft);border-radius:12px;padding:3px}
+.tabs button{flex:1;border:0;background:transparent;border-radius:9px;padding:7px 6px;font-size:13.5px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--bg);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.tabs small{font-weight:600;opacity:.75}
+
+
+
+/* ---------- scan view ---------- */
+.stage{background:var(--stage);color:#fff}
+.stage .wrap{padding-block:12px 12px;display:grid;gap:10px}
+.stage-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{background:rgba(255,255,255,.12);color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;border:0}
+.pill.strong{background:#fff;color:#121815}
+.stage-top .sp{flex:1}
+.frame{position:relative;margin:0 auto;width:min(100%, calc(50vh * var(--ar,1.333)));aspect-ratio:var(--ar,1.333);max-width:100%;border-radius:14px;overflow:hidden;background:var(--stage-2)}
+.frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.pin{position:absolute;transform:translate(-50%,-50%);border:0;border-radius:999px;padding:5px 10px;font-weight:800;font-size:13px;background:#fff;color:#121815;box-shadow:0 4px 14px rgba(0,0,0,.4);white-space:nowrap;z-index:2}
+.pin.hit{background:#0b7a52;color:#fff}
+.pin.check{background:#fff1dc;color:#8a4f00}
+.pin.grab{background:#121815;color:#fff}
+.pin.pass{opacity:.55}
+.pin::after{content:"";position:absolute;left:50%;bottom:-5px;width:8px;height:8px;background:inherit;transform:translateX(-50%) rotate(45deg);border-radius:1px;z-index:-1}
+.scanning{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);font-weight:700;font-size:14px;gap:8px;z-index:3;text-align:center;padding:16px}
+.scanning .spin{width:22px;height:22px;border-width:3px}
+.scanning button{border:0;background:#fff;color:#121815;border-radius:10px;padding:8px 14px;font-weight:800}
+.stage-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;color:rgba(255,255,255,.75);font-weight:600}
+.stage-nav button{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12.5px}
+.stage-nav button:disabled{opacity:.3;cursor:default}
+.empty-stage{display:grid;place-items:center;text-align:center;gap:10px;padding:32px 16px;color:rgba(255,255,255,.85)}
+.empty-stage b{font-size:18px;color:#fff}
+.empty-stage svg{width:42px;height:42px;opacity:.8}
+
+.shelf{padding-block:14px 0;display:grid;gap:10px}
+.shelf-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.shelf-head .lbl{font-size:12px;font-weight:700;color:var(--muted)}
+.shelf-head .big{font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.shelf-head .right{text-align:right;font-size:12.5px;color:var(--muted)}
+.shelf-head .right b{color:var(--ink)}
+.note{background:var(--soft);border-radius:14px;padding:12px 14px;font-size:13.5px;color:var(--muted)}
+.note strong{color:var(--ink)}
+.issue{background:var(--check-soft);color:var(--check);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600}
+
+.rows{display:grid}
+.row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:12px;align-items:start;text-align:left;width:100%;border:0;border-top:1px solid var(--line);background:transparent;padding:12px 0}
+.dot{width:12px;height:12px;border-radius:50%;margin-top:4px;background:var(--line)}
+.dot.hit{background:var(--accent)} .dot.check{background:var(--check)} .dot.grab{background:var(--ink)}
+.row h3{margin:0;font-size:14.5px;font-weight:700;line-height:1.3}
+.row .sub{font-size:12.5px;color:var(--muted);margin-top:1px}
+.row .sub.warn{color:var(--check);font-weight:700}
+.row .price{text-align:right}
+.row .price b{display:block;font-size:17px;font-weight:800}
+.row.hit .price b{color:var(--accent)}
+.row .price small{font-size:11.5px;color:var(--muted);font-weight:700}
+.row.passed h3,.row.passed .price b{color:var(--muted);text-decoration:line-through}
+
+.demand{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.demand b{font-weight:800}
+.meter{width:44px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;flex:0 0 auto;display:inline-block}
+.meter i{display:block;height:5px;border-radius:3px}
+.fast b,.fast .g{color:var(--accent)} .fast .meter i,.fast i.fill{background:var(--accent)}
+.steady b,.steady .g{color:var(--check)} .steady .meter i,.steady i.fill{background:var(--check)}
+.slow b,.slow .g{color:var(--bad)} .slow .meter i,.slow i.fill{background:var(--bad)}
+.realtag{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--bg);border-radius:4px;padding:1px 5px}
+
+/* ---------- shelves view ---------- */
+.list-head{padding-block:16px 4px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.list-head .big{font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.list-head .lbl{font-size:12px;font-weight:700;color:var(--muted)}
+.list-head .right{text-align:right;font-size:12.5px;color:var(--muted)}
+.cards{display:grid;gap:12px;padding-block:12px}
+.scard{background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:10px}
+.scard.alerted{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.scard-head{display:flex;gap:12px;align-items:center;border:0;background:transparent;padding:0;text-align:left;width:100%}
+.mini{width:58px;height:58px;border-radius:10px;overflow:hidden;position:relative;background:var(--stage-2);flex:0 0 auto}
+.mini img{width:100%;height:100%;object-fit:cover;display:block}
+.mini .kind{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;letter-spacing:.04em;z-index:2}
+.scard-head .t{flex:1;min-width:0}
+.scard-head h3{margin:0;font-size:15px;font-weight:800}
+.scard-head .m{font-size:12.5px;color:var(--muted)}
+.scard-head .v{font-size:18px;font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:0;background:var(--soft);color:var(--ink);font-size:12.5px;font-weight:700;padding:5px 9px;border-radius:8px;text-align:left}
+.chip.hit{background:var(--accent);color:var(--accent-ink)}
+.chip.grab{background:var(--ink);color:var(--bg)}
+.chip.check{background:var(--check-soft);color:var(--check)}
+.chip.pass{color:var(--muted);text-decoration:line-through}
+.chip .p{opacity:.8;font-weight:600}
+.goback{display:flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:700}
+.goback span{flex:1;min-width:0}
+.goback a{font-weight:800;text-decoration:none}
+.scard .err{display:flex;align-items:center;gap:8px;color:var(--bad);font-size:13px;font-weight:700}
+.scard .err button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:5px 10px;font-weight:700;font-size:12.5px;color:var(--ink)}
+.empty{text-align:center;color:var(--muted);padding:36px 12px;font-size:14px}
+
+/* ---------- receipt view ---------- */
+.rcontrols{display:flex;gap:8px;align-items:center;padding-block:14px 0}
+.seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;flex:1}
+.seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:6px 6px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.seg button[aria-selected="true"]{background:var(--bg);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:7px 8px;font-size:12.5px;font-weight:700}
+.paper-wrap{background:var(--paper-edge);border-radius:14px;padding:14px;margin-block:12px}
+.paper{background:var(--paper);border-radius:3px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:18px 16px;font-family:var(--f-mono);font-size:13px;display:grid;gap:3px}
+.paper .c{text-align:center}
+.paper .h1{font-weight:700;font-size:15px;letter-spacing:.14em}
+.paper .sub{color:var(--muted);font-size:11.5px;text-align:center}
+.paper hr{border:0;border-top:1px dashed var(--muted);opacity:.6;margin:8px 0 6px;width:100%}
+.paper .sec{display:grid;grid-template-columns:minmax(0,1fr) 42px 52px;gap:6px;font-weight:700;font-size:11.5px;letter-spacing:.08em}
+.paper .sec span:not(:first-child){text-align:right}
+.rline{display:grid;grid-template-columns:minmax(0,1fr) 42px 52px;gap:6px;border:0;background:transparent;padding:3px 0;text-align:left;font:inherit;color:inherit;width:100%;border-radius:4px}
+.rline:hover{background:var(--soft)}
+.rline span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rline span:not(:first-child){text-align:right}
+.rline.hit{color:var(--accent);font-weight:700}
+.rline.check .n{color:var(--check)}
+.rline.passed .n{color:var(--muted)}
+.rline .s.fast{color:var(--accent);font-weight:700} .rline .s.steady{color:var(--check);font-weight:700} .rline .s.slow{color:var(--bad);font-weight:700}
+.tline{display:flex;gap:8px}
+.tline span:first-child{flex:1}
+.tline.b{font-weight:700}
+.tline.miss{font-weight:700;color:var(--accent);font-size:15px;margin-top:2px}
+.tline.m{color:var(--muted)}
+.paper .legend{color:var(--muted);font-size:11px;text-align:center;margin-top:8px}
+.paper .none{color:var(--muted);padding:2px 0}
+
+/* ---------- dock ---------- */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:7;background:var(--bg);border-top:1px solid var(--line);padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.dock .wrap{display:flex;align-items:center;justify-content:space-between;padding-top:10px;gap:12px}
+.dock .vid{width:54px;height:54px;border-radius:50%;border:1px solid var(--line);background:var(--soft);display:grid;place-items:center;color:var(--ink)}
+.dock .vid svg{width:22px;height:22px}
+.dock .shutter{width:76px;height:76px;border-radius:50%;border:5px solid var(--accent-soft);background:var(--accent);box-sizing:border-box;display:grid;place-items:center;color:var(--accent-ink)}
+.dock .shutter svg{width:26px;height:26px}
+.dock .done{height:54px;min-width:54px;padding:0 18px;border-radius:27px;border:1px solid var(--ink);background:var(--bg);font-weight:800;font-size:15px}
+.dock label{cursor:pointer}
+.hiddenfile{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+/* ---------- item card (swipe deck) ---------- */
+.detail{position:fixed;inset:0;z-index:20;background:var(--soft);overflow-y:auto;overscroll-behavior:contain}
+.detail .wrap{padding-block:calc(env(safe-area-inset-top,0px) + 12px) calc(env(safe-area-inset-bottom,0px) + 24px);display:grid;gap:12px}
+.dtop{display:flex;align-items:center;gap:10px}
+.dtop .back{border:0;background:transparent;color:var(--accent);font-weight:800;padding:6px 0;font-size:14px}
+.dtop .count{margin-left:auto;font-size:13px;font-weight:700;color:var(--muted)}
+.progress{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.progress i{display:block;height:4px;background:var(--accent);border-radius:2px}
+.deckwrap{position:relative}
+.ghost{position:absolute;left:12px;right:12px;top:10px;bottom:-8px;background:var(--bg);border-radius:22px;border:1px solid var(--line);opacity:.6}
+.dcard{position:relative;background:var(--bg);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;touch-action:pan-y;transition:transform .2s ease;user-select:none}
+.dcard.dragging{transition:none}
+.zoom{position:relative;height:230px;overflow:hidden;background:var(--stage-2)}
+.zoom .zin{position:absolute;left:50%;top:50%;width:100%}
+.zoom .zin img{width:100%;display:block}
+.zoom .ztag{position:absolute;left:12px;top:12px;z-index:3;display:flex;gap:6px;flex-wrap:wrap}
+.zoom .ztag span{font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff}
+.zoom .ztag span.hit{background:#0b7a52}
+.zoom .ztag span.check{background:#fff1dc;color:#8a4f00}
+.zoom .ztag span.grab{background:#fff;color:#121815}
+.zoom .ztag span.fake{background:#b3261e}
+.stamp{position:absolute;top:22px;z-index:4;font-weight:800;font-size:22px;letter-spacing:.08em;border:3px solid currentColor;border-radius:10px;padding:4px 12px;opacity:0;pointer-events:none;background:rgba(255,255,255,.9)}
+.stamp.grab{left:18px;color:#0b7a52;transform:rotate(-10deg)}
+.stamp.pass{right:18px;color:#b3261e;transform:rotate(10deg)}
+.dbody{padding:16px 18px 18px;display:grid;gap:12px}
+.dname{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.dname h2{margin:0;font-size:20px;font-weight:800;line-height:1.2;text-wrap:balance}
+.dname .amt{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.dname .amt.hit{color:var(--accent)}
+.dmeta{font-size:13px;color:var(--muted);margin-top:-6px}
+.odds{border-radius:14px;padding:12px 14px;display:grid;gap:8px;background:var(--soft)}
+.odds.fast{background:var(--accent-soft)} .odds.steady{background:var(--check-soft)} .odds.slow{background:var(--bad-soft)}
+.odds .ohead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.odds .ohead span{font-size:13px;font-weight:700}
+.odds .ohead b{font-size:24px;font-weight:800}
+.odds .bar{height:8px;border-radius:4px;background:rgba(127,127,127,.22);overflow:hidden}
+.odds .bar i{display:block;height:8px;border-radius:4px}
+.odds .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:12px;color:var(--muted)}
+.odds .stats b{display:block;font-size:15px;color:var(--ink);font-weight:800}
+.odds .foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.odds .foot button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700}
+.counts-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.counts-form label{font-weight:700}
+.counts-form input{width:4.6em;border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:var(--bg);font-weight:700;color:var(--ink)}
+.flag{display:flex;gap:10px;align-items:center;border-radius:12px;padding:10px 12px;font-size:13px;background:var(--check-soft);color:var(--check);flex-wrap:wrap}
+.flag p{margin:0;flex:1;min-width:0;font-weight:600}
+.flag b{font-weight:800}
+.flag button{border:0;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:800;background:var(--check);color:var(--bg)}
+.flag button.plain{background:transparent;color:var(--check);padding:7px 4px}
+.flag.dup{background:var(--soft);color:var(--ink)}
+.flag.dup button{background:var(--ink);color:var(--bg)}
+.flag.dup button.plain{background:transparent;color:var(--muted)}
+.vnote{font-size:13px;color:var(--muted);border-left:3px solid var(--accent);padding-left:10px}
+.vnote.fake{border-left-color:var(--bad)}
+.vnote b{color:var(--ink)}
+.dlinks{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dlinks a,.dlinks .tagin{font-size:13px;font-weight:800;border-radius:10px;padding:8px 12px;text-decoration:none;border:1px solid var(--line);background:var(--bg);display:inline-flex;align-items:center;gap:4px}
+.dlinks a.sold{background:var(--accent-soft);border-color:var(--accent-soft)}
+.dlinks a.forsale{color:var(--ink)}
+.tagin{color:var(--muted)}
+.tagin input{width:3.6em;border:0;background:transparent;padding:0;font-weight:800;color:var(--ink)}
+.net{font-size:13px;font-weight:800}
+.net.pos{color:var(--accent)} .net.neg{color:var(--bad)}
+.dacts{display:flex;align-items:center;justify-content:center;gap:22px;padding-top:4px}
+.dacts button{border-radius:50%;display:grid;place-items:center;border:0}
+.dacts .pass{width:62px;height:62px;background:var(--bg);color:var(--bad);border:1px solid var(--line);box-shadow:0 6px 16px rgba(18,24,21,.08)}
+.dacts .ver{width:50px;height:50px;background:var(--check-soft);color:var(--check)}
+.dacts .grab{width:62px;height:62px;background:var(--accent);color:var(--accent-ink);box-shadow:0 6px 16px rgba(11,122,82,.3)}
+.dacts .on{outline:3px solid var(--ink);outline-offset:2px}
+.dacts svg{width:26px;height:26px}
+.dhint{text-align:center;font-size:12px;color:var(--muted)}
+.dremove{justify-self:center;border:0;background:transparent;color:var(--muted);font-size:12.5px;font-weight:700;text-decoration:underline}
+.dend{background:var(--bg);border-radius:22px;padding:32px 20px;text-align:center;display:grid;gap:10px;justify-items:center}
+.dend b{font-size:20px}
+.dend button{border:0;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:11px 18px;font-weight:800}
+
+/* ---------- alerts ---------- */
+.alerts{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:30;pointer-events:none}
+.alerts .wrap{display:grid;gap:8px}
+.alert{pointer-events:auto;background:var(--bg);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;animation:drop .3s ease-out}
+.alert .eyebrow{grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;color:var(--accent)}
+.alert .eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.alert h4{margin:0;font-size:14.5px;line-height:1.3}
+.alert .amt{font-size:22px;font-weight:800;color:var(--accent)}
+.alert .where{font-size:12px;color:var(--muted)}
+.alert .acts{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.alert .acts button,.alert .acts a{font-size:12.5px;font-weight:800;border-radius:8px;padding:6px 10px;border:1px solid var(--line);background:var(--bg);text-decoration:none;color:var(--ink)}
+.alert .acts .main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+@keyframes drop{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.alert,.spin{animation:none}.dcard{transition:none}}
+
+/* ---------- settings ---------- */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.4)}
+.panel{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--bg);border-radius:20px 20px 0 0;box-shadow:var(--shadow);max-height:88%;overflow-y:auto}
+.panel .wrap{padding-block:18px calc(20px + env(safe-area-inset-bottom,0px));display:grid;gap:6px}
+.panel h2{margin:0 0 6px;font-size:18px;font-weight:800}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.setrow small{display:block;color:var(--muted);font-size:12px}
+.setrow input[type=number]{width:5em;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg);text-align:right;font-weight:700}
+.setrow input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+.setchips{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.setchips button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.setchips button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)}
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:11px 14px;font-weight:700;font-size:14px;margin-top:8px}
+.btn.danger{color:var(--bad)}
+.btn.solid{background:var(--bad);border-color:var(--bad);color:#fff;margin-top:0}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px;margin-top:8px}
+.confirm .btn{margin-top:0}
+
+/* ---------- example drawings (demo shelves) ---------- */
+.ex{position:absolute;inset:0}
+.ex div{position:absolute}
+
+/* ---------- live camera ---------- */
+#live,#main{padding-bottom:calc(118px + env(safe-area-inset-bottom,0px))}
+#live main{padding:0}
+main{padding-bottom:0}
+video.live{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000}
+#live-pins{position:absolute;inset:0;z-index:2}
+.dock .vid{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:var(--muted);border-color:var(--line)}
+.dock .vid.on{color:var(--accent);border-color:var(--accent)}
+.dock .shutter.closeup{box-shadow:inset 0 0 0 5px var(--bg),inset 0 0 0 40px var(--check)}
+
+/* ---------- Appraiser look ---------- */
+.brand{display:grid;line-height:1}
+.top h1{font-family:var(--f-serif);font-weight:400;font-size:23px;letter-spacing:0}
+.brand small{font-size:9.5px;font-weight:800;letter-spacing:.22em;color:var(--accent);margin-top:3px}
+.logo{background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:3px}
+.iconbtn{border-radius:3px;background:transparent}
+.status{border-radius:3px}
+.tabs{background:transparent;border-radius:0;padding:0;gap:20px;border-bottom:1px solid var(--line);margin:0 0 -10px}
+.tabs button{flex:0 0 auto;border-radius:0;padding:4px 0 9px;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{background:transparent;box-shadow:none;border-bottom-color:var(--accent)}
+.stage{background:var(--stage)}
+.frame{border-radius:2px;outline:1px solid var(--accent);outline-offset:5px;margin-block:6px}
+.pill{border-radius:3px;background:rgba(243,234,216,.08);letter-spacing:.06em}
+.pill.strong{background:transparent;color:var(--ink);font-family:var(--f-serif);font-weight:400;font-size:16px;padding-left:0;letter-spacing:0}
+.stage-nav button{border-radius:3px}
+.pin{border-radius:2px;padding:3px 9px 4px;background:#f3ead8;color:#0f1b2d;text-align:center;line-height:1.1;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.pin::after{display:none}
+.pin .lot{display:block;font-size:8.5px;font-weight:800;letter-spacing:.16em}
+.pin .pv{display:block;font-family:var(--f-serif);font-weight:400;font-size:15px}
+.pin.hit{background:#0f1b2d;color:#f3ead8;outline:1px solid #d4a64a}
+.pin.hit .lot{color:#d4a64a}
+.pin.check{background:#f3ead8;color:#0f1b2d;outline:1px dashed #d4a64a;outline-offset:2px}
+.pin.grab{background:#2a3a52;color:#f3ead8}
+.lotno{font-size:11px;font-weight:800;color:var(--accent);letter-spacing:.06em;padding-top:3px;font-variant-numeric:tabular-nums}
+.row{grid-template-columns:22px minmax(0,1fr) auto}
+.row .price b,.shelf-head .big,.list-head .big,.scard-head .v,.dname .amt,.alert .amt,.odds .ohead b,.tile b{font-family:var(--f-serif);font-weight:400;letter-spacing:0}
+.row.hit .price b{color:var(--accent)}
+.shelf-head .lbl,.list-head .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800}
+.shelf-head .big,.list-head .big{font-size:34px}
+.note{border-radius:4px}
+.issue{border-radius:4px;background:var(--check-soft);color:var(--check)}
+.fast b,.fast .g{color:var(--good)} .fast .meter i,.fast i.fill{background:var(--good)}
+.steady b,.steady .g{color:var(--steady)} .steady .meter i,.steady i.fill{background:var(--steady)}
+.odds.fast{background:var(--good-soft)} .odds.steady{background:var(--steady-soft)}
+.odds{border-radius:4px}
+.realtag{background:var(--accent);color:var(--accent-ink)}
+.scard{background:var(--soft);border-color:var(--line);border-radius:4px}
+.scard.alerted{border-color:var(--accent);box-shadow:none}
+.scard-head h3{font-family:var(--f-serif);font-weight:400;font-size:18px}
+.mini{border-radius:2px}
+.chip{border-radius:3px;background:var(--bg)}
+.chip.hit{background:var(--accent);color:var(--accent-ink)}
+.goback{border-radius:3px}
+.seg{border-radius:4px}.seg button{border-radius:3px}
+select,.btn,.setrow input[type=number],.counts-form input{border-radius:3px}
+.paper{--ink:#0f1b2d;--muted:#5b6577;--accent:#8a6420;--good:#2f6b45;--steady:#8a6420;--bad:#a23b2f;--check:#3b5f86;--soft:#e8dcc4;color:var(--ink);border-radius:2px}
+.paper .h1{font-family:var(--f-serif);font-weight:400;font-size:22px;letter-spacing:.02em}
+.paper hr{border-top-color:#b9ab8f;opacity:1}
+.paper-wrap{border:1px solid var(--accent);border-radius:4px}
+.dock{background:#0b1524}
+.dock .vid{background:transparent}
+.dock .shutter{border:2px solid var(--accent);background:var(--bg);box-shadow:inset 0 0 0 5px var(--bg),inset 0 0 0 40px var(--accent);color:var(--accent-ink)}
+.dock .done{border-radius:3px;border-color:var(--accent);color:var(--accent);background:transparent;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+.detail{background:var(--stage)}
+.dcard{border-radius:4px;border:1px solid var(--line)}
+.ghost{border-radius:4px;background:var(--soft)}
+.zoom .ztag span{border-radius:2px;letter-spacing:.04em}
+.zoom .ztag span.hit{background:#0f1b2d;color:#d4a64a;outline:1px solid #d4a64a}
+.zoom .ztag span.check{background:#f3ead8;color:#0f1b2d}
+.zoom .ztag span.grab{background:#f3ead8;color:#0f1b2d}
+.dname h2{font-family:var(--f-serif);font-weight:400;font-size:24px}
+.dname .amt{font-size:34px}
+.lotlabel{font-size:10.5px;font-weight:800;letter-spacing:.18em;color:var(--accent)}
+.flag{border-radius:4px}
+.flag button{border-radius:3px;background:var(--check);color:var(--bg)}
+.flag.dup button{background:var(--ink);color:var(--bg)}
+.vnote{border-left-color:var(--accent)}
+.dlinks a,.dlinks .tagin{border-radius:3px}
+.dlinks a.sold{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.dacts .pass{background:transparent}
+.dacts .grab{box-shadow:0 6px 16px rgba(212,166,74,.25)}
+.dacts .on{outline-color:var(--ink)}
+.stamp{border-radius:3px;background:rgba(243,234,216,.95)}
+.stamp.grab{color:#8a6420}
+.dend{border-radius:4px;background:var(--soft)}
+.dend b{font-family:var(--f-serif);font-weight:400;font-size:24px}
+.dend button,.scanning button{border-radius:3px}
+.alert{border-radius:4px;border-color:var(--accent);background:var(--soft)}
+.alert .acts button,.alert .acts a{border-radius:3px;background:transparent}
+.alert .acts .main{background:var(--accent)}
+.panel{border-radius:6px 6px 0 0}
+.setchips button{border-radius:3px;background:transparent}
+.empty-stage b{font-family:var(--f-serif);font-weight:400;font-size:22px}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="top">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12 12 20l-8-8V4h8z"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/></svg></div>
+      <div class="brand"><h1>Shelf Sweeper</h1><small>FIELD APPRAISAL</small></div>
+      <span class="sp"></span>
+      <button class="status" id="status" data-act="retry-all" hidden></button>
+      <button class="iconbtn" data-act="settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button role="tab" data-view="scan" aria-selected="true">Scan</button>
+      <button role="tab" data-view="shelves" aria-selected="false">Shelves <small id="n-shelves"></small></button>
+      <button role="tab" data-view="receipt" aria-selected="false">Receipt <small id="n-items"></small></button>
+    </nav>
+  </div>
+</header>
+
+<div class="alerts" aria-live="assertive"><div class="wrap" id="alerts"></div></div>
+
+<section id="live" hidden>
+  <section class="stage"><div class="wrap">
+    <div class="stage-top"><span class="pill" id="live-status"></span><span class="sp"></span><button class="pill" data-act="settings" id="live-prices"></button></div>
+    <div class="frame" id="live-frame"><div id="live-pins"></div><div class="scanning" id="live-cover" hidden></div></div>
+  </div></section>
+  <section class="wrap shelf" id="live-list"></section>
+</section>
+<main id="main"></main>
+
+<div class="dock">
+  <div class="wrap">
+    <button class="vid" data-act="live-toggle" id="live-toggle" aria-label="Turn live scanning on or off">LIVE</button>
+    <button class="shutter" data-act="shutter" aria-label="Scan now">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    </button>
+    <button class="done" data-act="done">Done</button>
+  </div>
+</div>
+
+<section class="detail" id="detail" hidden aria-label="Item"></section>
+
+<div class="overlay" id="overlay" hidden data-act="close-settings"></div>
+<section class="panel" id="settings" hidden aria-label="Settings">
+  <div class="wrap">
+    <h2>Settings</h2>
+    <div class="setrow" style="display:grid;gap:8px"><label for="apikey">Claude API key<small>Get one at console.anthropic.com → API Keys. It stays on this phone. Set a monthly spend limit there so costs never surprise you.</small></label><input id="apikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" style="width:100%;border:1px solid var(--line);border-radius:3px;padding:9px 10px;background:var(--soft);color:var(--ink)"></div>
+    <div class="setrow"><label for="target">Alert price<small>Pop up anything that sells for this or more</small></label><span>$<input id="target" type="number" inputmode="numeric" min="1" step="5"></span></div>
+    <div class="setchips" id="target-chips"></div>
+    <div class="setrow"><label for="minlog">Minimum to log<small>Cheaper items are skipped entirely</small></label><span>$<input id="minlog" type="number" inputmode="numeric" min="0" step="1"></span></div>
+    <div class="setchips" id="min-chips"></div>
+    <div class="setrow"><label for="careful">Careful mode<small>Slower, better at reading marks and patterns</small></label><input type="checkbox" id="careful"></div>
+    <div class="setrow"><label for="fee">eBay fees<small>Used for net profit on the receipt</small></label><span><input type="number" id="fee" min="0" max="40" step="0.25"> %</span></div>
+    <div class="setrow"><label for="livechk">Live scanning<small>Scans on its own whenever you hold steady on something new</small></label><input type="checkbox" id="livechk"></div>
+    <button class="btn danger" data-act="new-hunt">Start a new hunt</button>
+    <div class="confirm" id="confirm-new" hidden>Clear every scan and item? <button class="btn solid" data-act="new-yes">Clear</button><button class="btn" data-act="new-no">Keep</button></div>
+    <button class="btn" data-act="close-settings">Close</button>
+  </div>
+</section>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const KEY = "shelf-sweeper-web-v1";
+  const money = n => "$" + Math.round(n || 0).toLocaleString("en-US");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const soldUrl = q => "https://www.ebay.com/sch/i.html?_nkw=" + encodeURIComponent(q) + "&LH_Sold=1&LH_Complete=1&_sop=13";
+  const forSaleUrl = q => "https://www.ebay.com/sch/i.html?_nkw=" + encodeURIComponent(q) + "&_sop=15";
+  const pct = v => { const n = Math.round(+v); return v == null || isNaN(n) ? null : Math.max(0, Math.min(100, n)); };
+  const cnt = v => { const n = Math.round(+v); return v == null || v === "" || isNaN(n) || n < 0 ? null : n; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const timeOf = t => { try { return new Date(t).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); } catch { return ""; } };
+
+  // ---------- example hunt ----------
+  const now = Date.now();
+  const EXAMPLE = {
+    example:true, target:100, min:10, fee:13.25, careful:false, live:true, key:"", cur:"ex1",
+    shots:[
+      { id:"ex2", kind:"photo", example:true, scene:"Housewares aisle", status:"done", count:2, frames:1, ar:4/3, at:now-14*60000 },
+      { id:"ex1", kind:"photo", example:true, scene:"China cabinet", status:"done", count:5, frames:1, ar:4/3, at:now-4*60000 }
+    ],
+    items:[
+      { id:"e1", shot:"ex1", frame:0, x:50, y:26, name:"Lenox Holiday dinner plates, set of 4", details:"Gold rim, holly pattern", where:"Top shelf, middle", low:70, high:140, typ:110, conf:"high", q:"Lenox Holiday dinner plates set of 4", at:now-4*60000+5, str:48, listed:150 },
+      { id:"e2", shot:"ex1", frame:0, x:30, y:64, name:"Fire-King Jade-ite mixing bowl", details:"Jadeite green, 7.5 in", where:"Middle shelf, left", low:30, high:60, typ:42, conf:"medium", q:"Fire-King jadeite mixing bowl", at:now-4*60000+4, grab:true, tag:6, str:71, listed:40 },
+      { id:"e3", shot:"ex1", frame:0, x:75, y:63, name:"Pyrex Butterprint casserole with lid", details:"Turquoise on white, 1.5 qt", where:"Middle shelf, right", low:25, high:45, typ:32, conf:"high", q:"Pyrex Butterprint casserole lid turquoise", at:now-4*60000+3, str:63, listed:60 },
+      { id:"e4", shot:"ex1", frame:0, x:52, y:56, name:"Goebel Hummel figurine, boy with umbrella", details:"Trademark not readable in photo", where:"Middle shelf, center", low:15, high:55, typ:25, conf:"low", q:"Goebel Hummel boy umbrella figurine", at:now-4*60000+2, str:18, listed:400,
+        verify:{ reason:"authenticity", ask:"Flip it over and photograph the base. The Goebel stamp dates it, and older stamps sell for more." } },
+      { id:"e7", shot:"ex1", frame:0, x:31, y:86, name:"Brass candlesticks, pair", details:"Solid brass, 8 in", where:"Bottom shelf, left", low:12, high:30, typ:18, conf:"medium", q:"vintage solid brass candlesticks pair", at:now-4*60000+1, str:35, listed:220 },
+      { id:"e5", shot:"ex2", frame:0, x:30, y:36, name:"Lenox Holiday dinner plates, 4", details:"Gold rim", where:"Top shelf, left", low:70, high:140, typ:105, conf:"medium", q:"Lenox Holiday dinner plates", at:now-14*60000+2, str:48, listed:150 },
+      { id:"e6", shot:"ex2", frame:0, x:66, y:66, name:"Corning Ware Blue Cornflower casserole", details:"P-1-B, 1 qt, no lid", where:"Bottom shelf, right", low:18, high:40, typ:28, conf:"high", q:"Corning Ware Blue Cornflower P-1-B", at:now-14*60000+1, str:66, listed:90 }
+    ]
+  };
+  function exampleScene(id){
+    if (id === "ex1") return `<div class="ex" aria-hidden="true">
+      <div style="inset:0;background:#3a2d24"></div>
+      <div style="left:8%;right:8%;top:6%;bottom:4%;background:#4a3a2e;border:5px solid #2b211a;border-radius:4px;box-sizing:border-box"></div>
+      <div style="left:8%;right:8%;top:39%;height:2.2%;background:#2b211a"></div>
+      <div style="left:8%;right:8%;top:71%;height:2.2%;background:#2b211a"></div>
+      <div style="left:16%;top:15%;width:12%;height:24%;border-radius:40% 40% 10% 10%;background:#d9d2c4"></div>
+      <div style="left:41%;top:14%;width:18%;aspect-ratio:1;border-radius:50%;background:#efe9dd;border:4px solid #c9a646;box-sizing:border-box"></div>
+      <div style="left:46%;top:21%;width:8%;aspect-ratio:1;border-radius:50%;border:2px solid #b8463b;box-sizing:border-box"></div>
+      <div style="left:70%;top:24%;width:14%;height:15%;border-radius:8px;background:#9bb7a3"></div>
+      <div style="left:20%;top:58%;width:20%;height:13%;border-radius:0 0 50% 50%;background:#8fcfb0"></div>
+      <div style="left:48.5%;top:44%;width:7%;height:27%;border-radius:40% 40% 12% 12%;background:#c7b8a3"></div>
+      <div style="left:65%;top:57%;width:20%;height:14%;border-radius:8px;background:#f1f1ec;border-top:6px solid #2f8a8f;box-sizing:border-box"></div>
+      <div style="left:26%;top:76%;width:3%;height:20%;border-radius:3px;background:#c9a646"></div>
+      <div style="left:33%;top:76%;width:3%;height:20%;border-radius:3px;background:#c9a646"></div>
+      <div style="left:55%;top:80%;width:26%;height:16%;border-radius:6px;background:#b9b1a6"></div>
+    </div>`;
+    if (id === "ex2") return `<div class="ex" aria-hidden="true">
+      <div style="inset:0;background:#5d6b72"></div>
+      <div style="left:4%;right:4%;top:48%;height:3%;background:#c7cdd1"></div>
+      <div style="left:4%;right:4%;top:92%;height:3%;background:#c7cdd1"></div>
+      <div style="left:4%;top:0;bottom:0;width:2.5%;background:#aab3b8"></div>
+      <div style="right:4%;top:0;bottom:0;width:2.5%;background:#aab3b8"></div>
+      <div style="left:21%;top:24%;width:18%;aspect-ratio:1;border-radius:50%;background:#efe9dd;border:4px solid #c9a646;box-sizing:border-box"></div>
+      <div style="left:48%;top:30%;width:14%;height:18%;border-radius:6px;background:#d8c3a5"></div>
+      <div style="left:56%;top:74%;width:20%;height:18%;border-radius:8px 8px 14px 14px;background:#f3f3ef;border-top:5px solid #3d6fb6;box-sizing:border-box"></div>
+      <div style="left:14%;top:70%;width:22%;height:22%;border-radius:6px;background:#8a7f73"></div>
+    </div>`;
+    return "";
+  }
+
+  // ---------- state ----------
+  function load(){ try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && v.items && v.shots ? v : null; } catch { return null; } }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {
+    try { S.shots.slice(0, Math.floor(S.shots.length/2)).forEach(s => s.thumb = null); localStorage.setItem(KEY, JSON.stringify(S)); } catch {} } }
+  let S = load();
+  if (!S || S.example) S = { ...structuredClone(EXAMPLE), ...(S ? { target:S.target, min:S.min, fee:S.fee, careful:S.careful, live:S.live, key:S.key } : {}) };
+
+  let view = "scan", frameIdx = 0, deck = null, rFilter = "all", rSort = "value";
+  const blobs = new Map();                 // shot id -> [Blob] waiting to be sent
+  let maxImgs = 4, running = 0, paused = false, audio = null, closeUpFor = null;
+  const MAX_RUN = 2;
+
+  // ---------- image store (IndexedDB, falls back to memory) ----------
+  const mem = new Map(), urls = new Map(), loading = new Set();
+  let dbP = null;
+  function db(){
+    if (!dbP) dbP = new Promise((ok) => {
+      try { const r = indexedDB.open("shelf-sweep", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("img");
+        r.onsuccess = () => ok(r.result); r.onerror = () => ok(null);
+      } catch { ok(null); }
+    });
+    return dbP;
+  }
+  async function putImg(key, blob){
+    mem.set(key, blob); urls.set(key, URL.createObjectURL(blob));
+    try { const d = await db(); if (d) d.transaction("img", "readwrite").objectStore("img").put(blob, key); } catch {}
+  }
+  async function clearImgs(){
+    urls.forEach(u => URL.revokeObjectURL(u)); urls.clear(); mem.clear();
+    try { const d = await db(); if (d) d.transaction("img", "readwrite").objectStore("img").clear(); } catch {}
+  }
+  let rq = 0;
+  function laterRender(){ cancelAnimationFrame(rq); rq = requestAnimationFrame(render); }
+  function imgURL(key){
+    if (urls.has(key)) return urls.get(key);
+    if (!loading.has(key)) {
+      loading.add(key);
+      db().then(d => { if (!d) return; const g = d.transaction("img").objectStore("img").get(key);
+        g.onsuccess = () => { if (g.result) { urls.set(key, URL.createObjectURL(g.result)); laterRender(); } };
+      }).catch(() => {});
+    }
+    return null;
+  }
+
+  // ---------- helpers ----------
+  const shotOf = id => S.shots.find(s => s.id === id);
+  const itemsOf = id => S.items.filter(i => i.shot === id);
+  const scanShots = () => S.shots.filter(s => s.kind !== "verify");
+  const shelfShots = () => scanShots().filter(s => s.status !== "done" || shotItems(s).length);
+  function shotItems(s){
+    if (!s) return [];
+    if (s.pins) return [...new Set(s.pins.map(p => p.id))].map(id => S.items.find(i => i.id === id)).filter(Boolean);
+    return itemsOf(s.id);
+  }
+  const shotPins = s => s.pins || itemsOf(s.id).filter(i => i.x != null).map(i => ({ id:i.id, x:i.x, y:i.y, frame:i.frame || 0 }));
+  const pending = () => S.shots.filter(s => s.status === "queued" || s.status === "working");
+  function demandOf(it){
+    if (it.realSold != null && it.realListed != null && it.realSold + it.realListed > 0)
+      return { p: Math.round(100 * it.realSold / (it.realSold + it.realListed)), listed: it.realListed, sold: it.realSold, real: true };
+    if (it.str != null) {
+      const sold = it.listed != null && it.str < 100 ? Math.round(it.listed * it.str / (100 - it.str)) : null;
+      return { p: it.str, listed: it.listed, sold, real: false };
+    }
+    return null;
+  }
+  const grade = p => p >= 60 ? ["fast","Sells fast"] : p >= 30 ? ["steady","Steady"] : ["slow","Slow seller"];
+  const sp = i => demandOf(i)?.p ?? 50;
+  const SORTS = { value:(a,b)=>b.typ-a.typ, bet:(a,b)=>b.typ*sp(b)-a.typ*sp(a), sell:(a,b)=>sp(b)-sp(a)||b.typ-a.typ };
+  const STOP = new Set(["of","the","a","an","and","with","set","in","on","for"]);
+  const toks = s => new Set(norm(s).split(" ").filter(w => w && !STOP.has(w)));
+  function dupOf(it){
+    if (it.dupOk) return null;
+    const a = toks(it.name); if (a.size < 2) return null;
+    let best = null, bestScore = 0;
+    for (const o of S.items) {
+      if (o === it || o.at > it.at || (o.at === it.at && o.id > it.id)) continue;
+      if (o.shot === it.shot || (it.video && o.video === it.video)) continue;
+      const b = toks(o.name); let inter = 0; a.forEach(w => { if (b.has(w)) inter++; });
+      const score = inter / (a.size + b.size - inter);
+      if (score > bestScore) { bestScore = score; best = o; }
+    }
+    return bestScore >= 0.6 ? best : null;
+  }
+  const needsCheck = i => !!(i.verify || i.checking || dupOf(i));
+  function kindOf(it){
+    if (it.grab) return "grab";
+    if (it.typ >= S.target) return "hit";
+    if (it.verify) return "check";
+    return "";
+  }
+  function shotTitle(s){
+    if (s.scene) return s.scene;
+    const n = scanShots().indexOf(s) + 1;
+    return (s.kind === "video" ? "Video " : "Photo ") + n;
+  }
+  function shotMeta(s){
+    const k = s.kind === "video" ? (s.parts > 1 ? `Video part ${s.part}/${s.parts}` : "Video") : "Photo";
+    const st = s.loading ? (s.err || "Reading video…") : s.status === "working" ? "Scanning…" : s.status === "queued" ? "Waiting" : s.status === "error" ? (s.err || "Failed") : `${shotItems(s).length} items`;
+    return `${k} · ${st} · ${timeOf(s.at)}`;
+  }
+  const VLABEL = { confirmed:"Verified", revised:"Corrected", reproduction:"Likely repro", unclear:"Still unclear" };
+  function demandLine(it){
+    const d = demandOf(it); if (!d) return "";
+    const [cls, word] = grade(d.p);
+    return `<div class="demand ${cls}"><span class="meter"><i style="width:${d.p}%"></i></span><b>${d.p}%</b><span class="g">${word}</span>${d.listed != null ? `<span>· ${d.real ? "" : "~"}${d.listed.toLocaleString("en-US")} listed</span>` : ""}${d.real ? '<span class="realtag">Your count</span>' : ""}</div>`;
+  }
+  function thumbHTML(s){
+    if (!s) return "";
+    if (s.example) return exampleScene(s.id);
+    if (s.thumb) return `<img src="${s.thumb}" alt="">`;
+    const u = imgURL(s.id + ":0");
+    return u ? `<img src="${u}" alt="">` : "";
+  }
+
+  // ---------- Claude (direct API with the user's own key) ----------
+  const MODEL_FAST = "claude-haiku-5-5", MODEL_CAREFUL = "claude-sonnet-5-5";
+  const aiOn = () => !!(S.key && S.key.trim());
+  async function b64(blob){
+    const u = new Uint8Array(await blob.arrayBuffer()); let out = "";
+    for (let i = 0; i < u.length; i += 0x8000) out += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    return btoa(out);
+  }
+  async function askJSON(text, imgs, model, maxTokens = 4096){
+    const content = [];
+    for (const b of imgs) content.push({ type:"image", source:{ type:"base64", media_type:"image/jpeg", data: await b64(b) } });
+    content.push({ type:"text", text });
+    let r;
+    try {
+      r = await fetch("https://api.anthropic.com/v1/messages", { method:"POST",
+        headers:{ "content-type":"application/json", "x-api-key":S.key.trim(), "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+        body: JSON.stringify({ model, max_tokens:maxTokens, messages:[{ role:"user", content }] }) });
+    } catch { throw { code:"offline" }; }
+    const j = await r.json().catch(() => null);
+    if (!r.ok) throw { code: r.status === 401 ? "bad_key" : [429, 503, 529].includes(r.status) ? "rate_limited" : "http", message: j?.error?.message || "HTTP " + r.status };
+    const txt = (j?.content || []).filter(c => c.type === "text").map(c => c.text).join("");
+    const x = txt.indexOf("{"), y = txt.lastIndexOf("}");
+    if (x < 0 || y <= x) throw { code:"invalid_json" };
+    return JSON.parse(txt.slice(x, y + 1));
+  }
+  function errText(e){
+    if (e?.code === "bad_key") return "Your API key was rejected. Check it in Settings.";
+    if (e?.code === "rate_limited") return "Claude is busy";
+    if (e?.code === "offline") return "No internet connection";
+    if (e?.code === "invalid_json") return "Claude's answer couldn't be read";
+    if (e?.code === "lost") return "Retake this one";
+    if (/credit/i.test(e?.message || "")) return "Your Anthropic account is out of credit";
+    return e?.message || "Scan failed";
+  }
+
+  function prompt(n, known = []){
+    const src = n > 1
+      ? `These ${n} images are consecutive frames (numbered 0 to ${n-1} in order) from one slow video pan across a thrift store shelf, cabinet or aisle. The same item often appears in several frames: list each physical item ONCE.`
+      : `The photo shows a thrift store or garage sale shelf, cabinet, table or bin.`;
+    return `You are pricing items for a reseller. ${src}
+Identify every distinct item that could be resold (up to 30). Treat a matching set (e.g. 4 identical plates) as one item with the count in the name.
+For each, estimate what it typically SELLS for on eBay in used condition (recent sold listings, not asking prices), in US dollars, as a low/typical/high range. Be realistic and conservative. Read any visible maker marks, brands, pattern names or labels and use them. If you can't identify it well, give a generic name, a wide range and confidence "low".
+SKIP anything that typically sells for under $${S.min}. Do not list it at all.
+POSITION: "x" and "y" are the item's center as a percent of the image width and height (0-100, 0 = left/top), so a price tag can be pinned on it.${n > 1 ? ` "frame" is the 0-based index of the frame where the item is seen best; x and y refer to that frame.` : ""}
+Give the best eBay search phrase for sold comps, and "where" in plain words so the shopper can find it ("top shelf, second from left").
+DEMAND: "listed" = roughly how many comparable listings are for sale on eBay right now (a round number); "sell_through" = the chance in percent (0-100) that one listed at the typical price sells within about 90 days, i.e. sold ÷ (sold + still listed). Common items with hundreds sitting are low (under 25); sought-after items with few listings are high (60+).
+VERIFY: set "verify" when a closer look could change the value a lot: blurry or partly hidden, value depends on a maker's mark, backstamp, signature, hallmark, label or model number you can't read, or fakes are common. "ask" tells the shopper exactly what close-up to take in one short sentence. Otherwise null.
+Also give "scene": a 2-4 word name for what the ${n > 1 ? "clip" : "photo"} shows ("China cabinet", "Glassware shelf", "Kitchen aisle"), and "photo_issue": one sentence if the whole thing is too blurry, dark or far away to identify items, else null.
+Reply with only JSON in this shape:
+{"scene":"China cabinet","photo_issue":null,"items":[{"name":"Lenox Holiday dinner plates, set of 4","details":"maker, pattern, size, visible condition","where":"top shelf, middle","x":50,"y":26,${n > 1 ? '"frame":0,' : ""}"low":70,"typical":110,"high":140,"confidence":"high","ebay_query":"Lenox Holiday dinner plates set of 4","listed":150,"sell_through":48,"verify":null}]}
+If nothing qualifies, reply with "items":[].${known.length ? `\nItems already logged nearby (if you see one of these same physical items again, use EXACTLY this name so it can be matched): ${known.slice(0, 40).join("; ")}` : ""}`;
+  }
+  function verifyPrompt(it){
+    const was = { name:it.name, details:it.details, low:it.low, typical:it.typ, high:it.high, confidence:it.conf, what_was_asked:it.verify?.ask || "a closer look" };
+    return `You are double-checking ONE item for a reseller in a thrift store. From a wide shelf photo it was identified as:
+${JSON.stringify(was)}
+The attached image(s) are close-ups the shopper just took of that item (its base, label, maker's mark, signature or model number).
+Read every marking you can. Decide whether it confirms the identification, changes it, or shows a reproduction or knock-off. Note visible damage (chips, cracks, crazing, repairs) that lowers the price. Then give an updated eBay sold-price estimate in US dollars for used condition, plus "listed" (roughly how many comparable listings are for sale on eBay now) and "sell_through" (chance in percent that one at the typical price sells within about 90 days).
+If the close-up is still too blurry or shows the wrong thing, use verdict "unclear" and set "verify" with what to photograph next. Otherwise "verify": null.
+Reply with only JSON:
+{"verdict":"confirmed","note":"One or two plain sentences on what the markings show and why the price is what it is.","name":"...","details":"...","low":0,"typical":0,"high":0,"confidence":"high","ebay_query":"...","listed":0,"sell_through":0,"verify":null}
+verdict is one of: confirmed, revised, reproduction, unclear.`;
+  }
+  const cleanVerify = v => v && typeof v === "object" && v.ask ? { reason:String(v.reason||"check").slice(0,30), ask:String(v.ask).slice(0,160) } : null;
+
+  async function runVerify(shot, imgs){
+    const it = S.items.find(i => i.id === shot.item);
+    if (!it) { shot.status = "done"; return; }
+    const r = await askJSON(verifyPrompt(it), imgs, MODEL_CAREFUL, 2048);
+    const before = it.typ;
+    const verdict = ["confirmed","revised","reproduction","unclear"].includes(r?.verdict) ? r.verdict : "unclear";
+    if (verdict !== "unclear") {
+      const typ = +r.typical;
+      if (r.name) it.name = String(r.name).slice(0,120);
+      if (r.details) it.details = String(r.details).slice(0,200);
+      if (!isNaN(typ) && typ >= 0) { it.typ = typ; it.low = +r.low || typ; it.high = +r.high || typ; }
+      if (["high","medium","low"].includes(r.confidence)) it.conf = r.confidence;
+      if (r.ebay_query) it.q = String(r.ebay_query).slice(0,100);
+      if (pct(r.sell_through) != null) it.str = pct(r.sell_through);
+      if (cnt(r.listed) != null) it.listed = cnt(r.listed);
+    }
+    it.checking = false;
+    it.verified = { verdict, note: String(r?.note || "").slice(0,280) };
+    it.verify = cleanVerify(r?.verify);
+    shot.status = "done"; shot.verdict = verdict;
+    save(); render();
+    if (it.typ >= S.target && before < S.target) popAlert(it);
+  }
+
+  async function analyze(shot){
+    shot.status = "working"; running++; render();
+    try {
+      const imgs = blobs.get(shot.id);
+      if (!imgs?.length) throw { code:"lost" };
+      if (shot.kind === "verify") { await runVerify(shot, imgs); blobs.delete(shot.id); return; }
+      const recent = S.items.filter(i => Date.now() - i.at < 30 * 60000);
+      const res = await askJSON(prompt(imgs.length, [...new Set(recent.map(i => i.name))]), imgs, S.careful ? MODEL_CAREFUL : MODEL_FAST);
+      const arr = Array.isArray(res?.items) ? res.items : [];
+      shot.issue = res?.photo_issue ? String(res.photo_issue).slice(0,160) : null;
+      if (res?.scene) shot.scene = String(res.scene).slice(0,40);
+      const seen = new Set(S.items.filter(i => shot.video && i.video === shot.video).map(i => norm(i.name)));
+      const found = [], pins = [];
+      const sim = (a, b) => { const A = toks(a), B = toks(b); if (!A.size || !B.size) return 0; let n = 0; A.forEach(w => { if (B.has(w)) n++; }); return n / (A.size + B.size - n); };
+      arr.forEach((r, k) => {
+        const typ = +r.typical || 0;
+        if (!r.name || typ < S.min) return;
+        const key = norm(r.name); if (seen.has(key)) return; seen.add(key);
+        const x = +r.x, y = +r.y, fr = clamp(Math.round(+r.frame || 0), 0, imgs.length - 1);
+        const px = isNaN(x) ? null : clamp(x, 4, 96), py = isNaN(y) ? null : clamp(y, 5, 95);
+        // the same physical item seen again: pin the one already logged instead of adding a duplicate
+        let best = null, score = 0;
+        for (const o of recent) { const v = sim(o.name, r.name); if (v > score) { score = v; best = o; } }
+        if (best && score >= 0.6) { if (px != null) pins.push({ id:best.id, x:px, y:py, frame:fr }); return; }
+        const it = { id:uid(), shot:shot.id, video:shot.video||null, frame: fr, x: px, y: py,
+          name:String(r.name).slice(0,120), details:String(r.details||"").slice(0,200), where:String(r.where||"").slice(0,80),
+          low:+r.low||typ, high:+r.high||typ, typ, conf:["high","medium","low"].includes(r.confidence)?r.confidence:"low",
+          q:String(r.ebay_query||r.name).slice(0,100), at:Date.now() + k, grab:false, pass:false, tag:null,
+          verify: cleanVerify(r.verify), str: pct(r.sell_through), listed: cnt(r.listed) };
+        S.items.push(it); found.push(it);
+        if (px != null) pins.push({ id:it.id, x:px, y:py, frame:fr });
+      });
+      shot.pins = pins;
+      shot.status = "done"; shot.count = found.length; blobs.delete(shot.id);
+      const newest = S.shots.filter(x => x.live && x.status === "done").sort((a, b) => b.at - a.at)[0];
+      if (shot.live && newest === shot) { livePins = pins; liveShot = shot.id; }
+      save(); render();
+      found.filter(i => i.typ >= S.target).sort((a,b) => b.typ - a.typ).forEach(popAlert);
+    } catch (e) {
+      shot.status = "error";
+      shot.err = errText(e);
+      if (e?.code === "rate_limited") paused = true;
+      if (shot.live) toast(shot.err);
+      if (shot.kind === "verify") { const it = S.items.find(i => i.id === shot.item); if (it) it.checking = false; }
+      save(); render();
+    } finally { running--; render(); pump(); }
+  }
+  function pump(){
+    if (!aiOn() || paused) return;
+    for (const s of S.shots) {
+      if (running >= MAX_RUN) break;
+      if (s.status === "queued" && blobs.has(s.id)) analyze(s);
+    }
+  }
+  function retry(s){
+    if (!s) return;
+    if (!blobs.has(s.id)) { s.err = "Retake this one"; render(); return; }
+    s.status = "queued"; paused = false; pump(); render();
+  }
+
+  // ---------- capture ----------
+  function drawTo(src, w, h, max, q, asData){
+    const k = Math.min(1, max / Math.max(w, h));
+    const c = document.createElement("canvas"); c.width = Math.round(w*k); c.height = Math.round(h*k);
+    c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+    if (asData) return Promise.resolve(c.toDataURL("image/jpeg", q));
+    return new Promise(ok => c.toBlob(ok, "image/jpeg", q));
+  }
+  async function loadImage(file){
+    const url = URL.createObjectURL(file);
+    try { return await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; }); }
+    finally { setTimeout(() => URL.revokeObjectURL(url), 3000); }
+  }
+  function startFreshIfExample(){
+    if (!S.example) return;
+    const keep = { target:S.target, min:S.min, fee:S.fee, careful:S.careful, live:S.live, key:S.key };
+    S = { example:false, ...keep, shots:[], items:[], viewShot:null };
+  }
+  function queueVerify(it, imgs){
+    const id = uid();
+    blobs.set(id, imgs); it.checking = true;
+    S.shots.push({ id, kind:"verify", item:it.id, status:"queued", at:Date.now() });
+    toast("Checking your close-up…");
+    save(); render(); pump();
+  }
+  function startVerify(id){
+    unlockAudio();
+    closeUpFor = id; deck = null; S.viewShot = null; view = "scan";
+    render(); startCamera();
+  }
+
+  // ---------- live camera ----------
+  const video = document.createElement("video");
+  video.className = "live"; video.muted = true; video.autoplay = true;
+  video.setAttribute("playsinline", ""); video.setAttribute("muted", "");
+  $("#live-frame").prepend(video);
+  video.addEventListener("loadedmetadata", () => render());
+  let stream = null, camErr = "", camStarting = false, livePins = [], liveShot = null, wakeLock = null;
+  let lastScanGrid = null, lastScanAt = 0, prevGrid = null, steady = 0, captureNow = false;
+  const camWanted = () => { try { return localStorage.getItem("ss-cam") === "1"; } catch { return false; } };
+  async function startCamera(){
+    if (stream || camStarting) return;
+    camStarting = true;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:{ ideal:"environment" }, width:{ ideal:1280 }, height:{ ideal:960 } } });
+      video.srcObject = stream; await video.play().catch(() => {});
+      camErr = ""; try { localStorage.setItem("ss-cam", "1"); } catch {}
+      try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+    } catch (e) {
+      stream = null;
+      camErr = e?.name === "NotAllowedError" ? "Camera access is blocked. On iPhone: Settings → Safari → Camera → Allow, then reload this page." : "The camera couldn't start.";
+    }
+    camStarting = false; render();
+  }
+  function stopCamera(){
+    stream?.getTracks().forEach(t => t.stop()); stream = null;
+    try { wakeLock?.release(); } catch {} wakeLock = null;
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopCamera(); else if (camWanted()) startCamera();
+  });
+  const gridC = document.createElement("canvas"); gridC.width = 32; gridC.height = 24;
+  const gctx = gridC.getContext("2d", { willReadFrequently:true });
+  function liveGrid(){
+    gctx.drawImage(video, 0, 0, 32, 24);
+    const d = gctx.getImageData(0, 0, 32, 24).data, g = new Uint8Array(768);
+    for (let i = 0; i < 768; i++) g[i] = (d[i*4] * .3 + d[i*4+1] * .59 + d[i*4+2] * .11) | 0;
+    return g;
+  }
+  const gdiff = (a, b) => { let t = 0; for (let i = 0; i < a.length; i++) t += Math.abs(a[i] - b[i]); return t / a.length; };
+  setInterval(() => {
+    if (!stream || video.readyState < 2 || document.hidden) return;
+    let g; try { g = liveGrid(); } catch { return; }
+    const motion = prevGrid ? gdiff(g, prevGrid) : 255; prevGrid = g;
+    steady = motion < 6 ? steady + 1 : 0;
+    const change = lastScanGrid ? gdiff(g, lastScanGrid) : 255;
+    if (change > 26 && livePins.length) { livePins = []; liveShot = null; if (liveMode()) renderLive(); }
+    const manual = captureNow; captureNow = false;
+    const free = liveMode() && !deck && $("#settings").hidden;
+    const auto = S.live && free && !closeUpFor && aiOn() && steady >= 6 && change > 18 && pending().length < 2 && Date.now() - lastScanAt > 2500;
+    if (manual || auto) { steady = 0; lastScanGrid = g; lastScanAt = Date.now(); grabFrame(); }
+  }, 110);
+  async function grabFrame(){
+    const w = video.videoWidth, h = video.videoHeight; if (!w) return;
+    if (closeUpFor) {
+      const it = S.items.find(i => i.id === closeUpFor); closeUpFor = null;
+      const big = await drawTo(video, w, h, 1568, .9);
+      if (it && big) queueVerify(it, [big]);
+      render(); return;
+    }
+    if (!aiOn()) { openSettings(true); return; }
+    startFreshIfExample();
+    const id = uid();
+    const [big, thumb] = await Promise.all([drawTo(video, w, h, 1280, .82), drawTo(video, w, h, 160, .6, true)]);
+    if (!big) return;
+    blobs.set(id, [big]); await putImg(id + ":0", big);
+    S.shots.push({ id, kind:"photo", live:true, thumb, status:"queued", frames:1, ar: w / h, at:Date.now() });
+    save(); render(); pump();
+  }
+  function toast(msg){
+    const el = document.createElement("div"); el.className = "alert";
+    el.innerHTML = `<div style="grid-column:1/-1;font-size:13.5px">${esc(msg)}</div>`;
+    el.addEventListener("click", () => el.remove());
+    const box = $("#alerts"); box.prepend(el); setTimeout(() => el.remove(), 4500);
+    while (box.children.length > 3) box.lastElementChild.remove();
+  }
+
+  // ---------- alerts ----------
+  function unlockAudio(){ try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume?.(); } catch {} }
+  function ding(){
+    try { navigator.vibrate?.([120, 60, 120]); } catch {}
+    try { if (!audio) return; const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.type = "sine";
+      o.frequency.setValueAtTime(880, t); o.frequency.setValueAtTime(1320, t + .12);
+      g.gain.setValueAtTime(.2, t); g.gain.exponentialRampToValueAtTime(.001, t + .45);
+      o.connect(g).connect(audio.destination); o.start(); o.stop(t + .45); } catch {}
+  }
+  function popAlert(it){
+    ding();
+    const d = demandOf(it);
+    const el = document.createElement("div"); el.className = "alert";
+    el.innerHTML = `<div class="eyebrow"><i></i>Over your ${money(S.target)} alert${it.verify ? " · authenticate first" : ""}</div>
+      <div style="min-width:0"><h4>${esc(it.name)}</h4><div class="where">${esc(it.where)}${d ? ` · ${d.p}% chance to sell` : ""}</div></div>
+      <div class="amt tnum">${money(it.typ)}</div>
+      <div class="acts"><button class="main" data-a="look">Look</button><a href="${soldUrl(it.q)}" target="_blank" rel="noopener">Sold ↗</a><button data-a="grab">Grab</button><button data-a="close">Dismiss</button></div>`;
+    el.addEventListener("click", e => {
+      const a = e.target.closest("[data-a]")?.dataset.a; if (!a) return;
+      if (a === "grab") { it.grab = true; it.pass = false; save(); render(); }
+      if (a === "look") openDeck(shotItems(shotOf(it.shot)).sort(SORTS.value).map(i => i.id), it.id);
+      el.remove();
+    });
+    const box = $("#alerts"); box.prepend(el);
+    while (box.children.length > 2) box.lastElementChild.remove();
+  }
+
+  // ---------- render: shared ----------
+  function render(){
+    document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
+    $("#n-shelves").textContent = shelfShots().length || "";
+    $("#n-items").textContent = S.items.length ? S.items.length : "";
+    const p = pending().length, st = $("#status");
+    st.hidden = !p && !paused;
+    st.className = "status" + (paused ? " busy" : "");
+    st.innerHTML = paused ? "Busy · tap to retry" : `<span class="spin"></span>Scanning ${p}`;
+    const lm = liveMode();
+    $("#live").hidden = !lm; $("#main").hidden = lm;
+    if (lm) { renderLive(); $("#main").innerHTML = ""; }
+    else $("#main").innerHTML = view === "scan" ? scanHTML() : view === "shelves" ? shelvesHTML() : receiptHTML();
+    const lt = $("#live-toggle"); lt.classList.toggle("on", !!S.live); lt.textContent = S.live ? "LIVE" : "OFF";
+    document.querySelector(".dock .shutter").classList.toggle("closeup", !!closeUpFor);
+    renderDetail();
+    renderSettings();
+  }
+
+  // ---------- render: live camera ----------
+  function liveMode(){ return view === "scan" && !S.viewShot; }
+  function liveItems(){
+    return [...new Set(livePins.map(p => p.id))].map(id => S.items.find(i => i.id === id)).filter(Boolean).sort(SORTS.value);
+  }
+  function renderLive(){
+    if (video.videoWidth) $("#live-frame").style.setProperty("--ar", (video.videoWidth / video.videoHeight).toFixed(4));
+    else $("#live-frame").style.setProperty("--ar", "0.75");
+    const ci = closeUpFor && S.items.find(i => i.id === closeUpFor);
+    $("#live-status").textContent = ci ? "CLOSE-UP · " + shortName(ci.name) + " · tap the shutter"
+      : !aiOn() ? "Add your API key in Settings" : S.live ? "LIVE · hold steady on a shelf" : "Tap the shutter to scan";
+    $("#live-prices").textContent = `Alert ${money(S.target)} · Log ${money(S.min)}+`;
+    const cover = $("#live-cover");
+    if (!stream) {
+      cover.hidden = false;
+      cover.innerHTML = camStarting ? `<div><span class="spin"></span><div>Starting the camera…</div></div>`
+        : `<div><div>${esc(camErr || "Point your camera at a shelf.")}</div><br><button data-act="cam-start">${camErr ? "Try again" : "Start camera"}</button></div>`;
+    } else cover.hidden = true;
+    const its = liveItems(), ids = its.map(i => i.id).join(",");
+    const seen = new Set();
+    $("#live-pins").innerHTML = livePins.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; }).map(p => {
+      const i = S.items.find(x => x.id === p.id); if (!i) return "";
+      const lot = its.indexOf(i) + 1;
+      return `<button class="pin ${kindOf(i)}${i.pass ? " pass" : ""}" style="left:${p.x}%;top:${p.y}%" data-act="open" data-id="${i.id}" data-deck="${ids}" aria-label="Lot ${lot}: ${esc(i.name)}, ${money(i.typ)}"><span class="lot">LOT ${lot}${i.verify ? " ?" : i.grab ? " ✓" : ""}</span><span class="pv">${money(i.typ)}</span></button>`;
+    }).join("");
+    const total = its.reduce((a, i) => a + i.typ, 0), all = S.items.reduce((a, i) => a + i.typ, 0);
+    const alerts = S.items.filter(i => i.typ >= S.target).length;
+    const ls = liveShot && shotOf(liveShot);
+    $("#live-list").innerHTML = `
+      ${aiOn() ? "" : noAI()}
+      ${S.example ? `<div class="note"><strong>An example hunt is loaded</strong> so you can look around: open Shelves and Receipt, and tap any item. Your first scan clears it.</div>` : ""}
+      ${ls?.issue ? `<div class="issue">${esc(ls.issue)}</div>` : ""}
+      <div class="shelf-head"><div><div class="lbl">${esc(ls?.scene || "This view")}</div><div class="big tnum">${money(total)}</div></div>
+        <div class="right"><b>${money(all)}</b> total today<br>${S.items.length} items · ${alerts} alert${alerts === 1 ? "" : "s"}</div></div>
+      <div class="rows">${its.length ? its.map((i, n) => rowHTML(i, ids, n + 1)).join("")
+        : `<div class="empty">${pending().length ? "Finding items and prices…" : `Point at a shelf and hold still. Lot tags appear on anything worth ${money(S.min)} or more.`}</div>`}</div>`;
+    if (stream && video.paused) video.play().catch(() => {});
+  }
+
+  // ---------- render: a saved shelf (viewfinder replay) ----------
+  function curShot(){ return shotOf(S.viewShot) || null; }
+  function scanHTML(){
+    const s = curShot();
+    if (!s) { S.viewShot = null; return ""; }
+    const list = shelfShots(), idx = list.indexOf(s);
+    const frames = s.frames || 1; frameIdx = clamp(frameIdx, 0, frames - 1);
+    const its = shotItems(s).sort(SORTS.value);
+    const ids = its.map(i => i.id).join(",");
+    const imgU = s.example ? null : imgURL(s.id + ":" + frameIdx);
+    const pics = s.example ? exampleScene(s.id) : imgU ? `<img src="${imgU}" alt="${esc(shotTitle(s))}">` : s.thumb ? `<img src="${s.thumb}" alt="">` : "";
+    const lotOf = i => its.indexOf(i) + 1;
+    const pseen = new Set();
+    const pins = shotPins(s).filter(p => (p.frame || 0) === frameIdx && !pseen.has(p.id) && pseen.add(p.id)).map(p => [p, S.items.find(x => x.id === p.id)]).filter(([, i]) => i).map(([p, i]) =>
+      `<button class="pin ${kindOf(i)}${i.pass ? " pass" : ""}" style="left:${p.x}%;top:${p.y}%" data-act="open" data-id="${i.id}" data-deck="${ids}" aria-label="Lot ${lotOf(i)}: ${esc(i.name)}, ${money(i.typ)}"><span class="lot">LOT ${lotOf(i)}${i.verify ? " ?" : i.grab ? " ✓" : ""}</span><span class="pv">${money(i.typ)}</span></button>`).join("");
+    let overlay = "";
+    if (s.status === "working" || s.status === "queued") overlay = `<div class="scanning"><div><span class="spin"></span><div>${esc(s.loading ? s.err : s.status === "queued" ? "Waiting to scan…" : "Finding items and prices…")}</div></div></div>`;
+    if (s.status === "error") overlay = `<div class="scanning"><div><div>${esc(s.err || "Scan failed")}</div><br><button data-act="retry" data-shot="${s.id}">Try again</button></div></div>`;
+    const total = its.reduce((a,i)=>a+i.typ,0), all = S.items.reduce((a,i)=>a+i.typ,0);
+    const alerts = S.items.filter(i => i.typ >= S.target).length;
+    return `<section class="stage"><div class="wrap">
+      <div class="stage-top"><button class="pill" data-act="live">● Live camera</button><span class="pill strong">${esc(shotTitle(s))}</span><span class="pill">${esc(shotMeta(s))}</span><span class="sp"></span><button class="pill" data-act="settings">Alert ${money(S.target)} · Log ${money(S.min)}+</button></div>
+      <div class="frame" style="--ar:${(s.ar || 4/3).toFixed(4)}">${pics}${pins}${overlay}</div>
+      <div class="stage-nav">
+        <button data-act="shot-step" data-d="-1" ${idx <= 0 ? "disabled" : ""} aria-label="Previous shelf">‹ Prev</button>
+        ${frames > 1 ? `<span><button data-act="frame-step" data-d="-1" ${frameIdx <= 0 ? "disabled" : ""} aria-label="Previous frame">‹</button> Frame ${frameIdx+1} of ${frames} <button data-act="frame-step" data-d="1" ${frameIdx >= frames-1 ? "disabled" : ""} aria-label="Next frame">›</button></span>` : `<span>Shelf ${idx+1} of ${list.length}</span>`}
+        <button data-act="shot-step" data-d="1" ${idx >= list.length-1 ? "disabled" : ""} aria-label="Next shelf">Next ›</button>
+      </div>
+    </div></section>
+    <section class="wrap shelf">
+      ${S.example ? `<div class="note"><strong>This is an example hunt.</strong> Tap a price tag to see the item card. Your first photo clears the examples.</div>` : ""}
+      ${s.issue ? `<div class="issue">${esc(s.issue)}</div>` : ""}
+      <div class="shelf-head"><div><div class="lbl">This shelf</div><div class="big tnum">${money(total)}</div></div>
+        <div class="right"><b>${money(all)}</b> total today<br>${S.items.length} items · ${alerts} alert${alerts===1?"":"s"}</div></div>
+      <div class="rows">${its.length ? its.map((i, n) => rowHTML(i, ids, n + 1)).join("") : `<div class="empty">${s.status === "done" ? `Nothing here worth ${money(S.min)} or more.` : "Items show up here as soon as the scan finishes."}</div>`}</div>
+    </section>`;
+  }
+  function noAI(){ return `<div class="note"><strong>Add your Claude API key to start scanning.</strong> Get one at console.anthropic.com, then paste it in <button class="pill" data-act="settings" style="background:var(--accent);color:var(--accent-ink)">Settings</button></div>`; }
+  function rowHTML(i, ids, lot){
+    const k = kindOf(i);
+    const sub = i.checking ? `<div class="sub warn">Checking your close-up…</div>` : i.verify ? `<div class="sub warn">Authenticate: ${esc(i.verify.ask)}</div>` : `<div class="sub">${esc(i.where || i.details)}${i.grab ? " · in cart" : i.pass ? " · passed" : ""}</div>`;
+    return `<button class="row ${k}${i.pass ? " passed" : ""}" data-act="open" data-id="${i.id}" data-deck="${ids}">
+      <span class="lotno">${String(lot).padStart(2, "0")}</span>
+      <span style="min-width:0;display:block"><h3>${esc(i.name)}</h3>${sub}${demandLine(i)}</span>
+      <span class="price"><b class="tnum">${money(i.typ)}</b><small>${money(i.low)}–${money(i.high)}</small></span></button>`;
+  }
+
+  // ---------- render: shelves (history) ----------
+  function shelvesHTML(){
+    const list = shelfShots().slice().reverse();
+    const total = S.items.reduce((a,i)=>a+i.typ,0);
+    const left = S.items.filter(i => i.typ >= S.target && !i.grab).length;
+    if (!list.length) return `<div class="wrap"><div class="empty">No shelves yet. Every photo and video you take is kept here so you can look back later.</div></div>`;
+    return `<div class="wrap">
+      <div class="list-head"><div><div class="lbl">${list.length} spot${list.length===1?"":"s"} scanned</div><div class="big tnum">${money(total)}</div></div>
+        <div class="right">${left ? `<b style="color:var(--accent)">${left} alert${left===1?"":"s"}</b> still on a shelf<br>` : ""}Alert ${money(S.target)} · Log ${money(S.min)}</div></div>
+      <div class="cards">${list.map(shelfCard).join("")}</div></div>`;
+  }
+  function shelfCard(s){
+    const its = shotItems(s).sort(SORTS.value), ids = its.map(i => i.id).join(",");
+    const missed = its.filter(i => i.typ >= S.target && !i.grab && !i.pass);
+    const chips = its.map(i => { const d = demandOf(i), k = i.grab ? "grab" : i.typ >= S.target ? "hit" : i.verify ? "check" : i.pass ? "pass" : "";
+      return `<button class="chip ${k}" data-act="open" data-id="${i.id}" data-deck="${ids}">${i.grab ? "✓ " : ""}${esc(shortName(i.name))} ${money(i.typ)}${i.verify ? " ?" : ""}${d ? ` <span class="p">· ${d.p}%</span>` : ""}</button>`; }).join("");
+    const kind = s.kind === "video" ? `<span class="kind">${s.parts > 1 ? `VID ${s.part}/${s.parts}` : "VID"}</span>` : "";
+    return `<article class="scard${missed.length ? " alerted" : ""}">
+      <button class="scard-head" data-act="goto" data-shot="${s.id}">
+        <span class="mini">${kind}${thumbHTML(s)}</span>
+        <span class="t"><h3>${esc(shotTitle(s))}</h3><span class="m">${esc(shotMeta(s))}</span></span>
+        <span class="v tnum">${money(its.reduce((a,i)=>a+i.typ,0))}</span></button>
+      ${s.status === "error" ? `<div class="err"><span>${esc(s.err || "Scan failed")}</span><button data-act="retry" data-shot="${s.id}">Try again</button></div>` : ""}
+      ${s.issue ? `<div class="issue">${esc(s.issue)}</div>` : ""}
+      ${chips ? `<div class="chips">${chips}</div>` : ""}
+      ${missed.map(i => { const d = demandOf(i); return `<div class="goback"><span>Go back: ${esc(shortName(i.name))}, ${esc(i.where)}${d ? ` · ${d.p}% sell` : ""}</span><a href="${soldUrl(i.q)}" target="_blank" rel="noopener">Sold ↗</a><a href="${forSaleUrl(i.q)}" target="_blank" rel="noopener">For sale ↗</a></div>`; }).join("")}
+    </article>`;
+  }
+  const shortName = n => { const s = String(n).split(",")[0]; return s.length > 34 ? s.slice(0, 32) + "…" : s; };
+
+  // ---------- render: receipt (full log) ----------
+  function receiptHTML(){
+    const pass = i => rFilter === "hits" ? i.typ >= S.target : rFilter === "check" ? needsCheck(i) : true;
+    const cart = S.items.filter(i => i.grab).sort(SORTS[rSort]);
+    const left = S.items.filter(i => !i.grab).sort(SORTS[rSort]);
+    const cartV = cart.reduce((a,i)=>a+i.typ,0), fees = cartV * (S.fee||0) / 100, tags = cart.reduce((a,i)=>a+(+i.tag||0),0);
+    const missed = left.reduce((a,i)=>a+i.typ,0);
+    const best = left.slice().sort(SORTS.bet)[0];
+    const checks = S.items.filter(needsCheck).length;
+    const p = pending().length;
+    const line = (i, deckIds) => { const d = demandOf(i), g = d ? grade(d.p)[0] : "";
+      const mark = i.typ >= S.target && !i.grab ? "** " : i.verify ? "?  " : i.pass ? "x  " : "";
+      const cls = (i.typ >= S.target && !i.grab ? "hit " : "") + (i.verify ? "check " : "") + (i.pass ? "passed" : "");
+      return `<button class="rline ${cls}" data-act="open" data-id="${i.id}" data-deck="${deckIds}"><span class="n">${mark}${esc(shortName(i.name))}</span><span class="s ${g}">${d ? d.p + "%" : "–"}</span><span>${money(i.typ)}</span></button>`; };
+    const cartF = cart.filter(pass), leftF = left.filter(pass);
+    const cartIds = cartF.map(i => i.id).join(","), leftIds = leftF.map(i => i.id).join(",");
+    return `<div class="wrap">
+      <div class="rcontrols">
+        <div class="seg" role="tablist">
+          <button data-act="rfilter" data-f="all" aria-selected="${rFilter==="all"}">All</button>
+          <button data-act="rfilter" data-f="hits" aria-selected="${rFilter==="hits"}">Alerts</button>
+          <button data-act="rfilter" data-f="check" aria-selected="${rFilter==="check"}">To check${checks ? " " + checks : ""}</button>
+        </div>
+        <select id="rsort" aria-label="Sort"><option value="value"${rSort==="value"?" selected":""}>Top value</option><option value="bet"${rSort==="bet"?" selected":""}>Best bet</option><option value="sell"${rSort==="sell"?" selected":""}>Sells fastest</option></select>
+      </div>
+      <div class="paper-wrap"><div class="paper">
+        <div class="c h1">Shelf Sweeper</div>
+        <div class="sub">FIELD APPRAISAL · ${esc(timeOf(Date.now()))}${S.example ? " · EXAMPLE" : ""}</div>
+        <div class="sub">ALERT ≥ ${money(S.target)} · LOG ≥ ${money(S.min)}</div>
+        ${p ? `<div class="sub" style="color:var(--check)">STILL SCANNING ${p} · TOTALS WILL UPDATE</div>` : ""}
+        <hr>
+        <div class="sec"><span>IN CART</span><span>SELL</span><span>VALUE</span></div>
+        ${cartF.length ? cartF.map(i => line(i, cartIds)).join("") : `<div class="none">${cart.length ? "None match this filter" : "Nothing grabbed yet"}</div>`}
+        ${tags ? `<div class="tline m"><span>  tag prices paid</span><span>-${money(tags)}</span></div>` : ""}
+        <hr>
+        <div class="sec"><span>LEFT ON THE SHELF</span><span></span><span></span></div>
+        ${leftF.length ? leftF.map(i => line(i, leftIds)).join("") : `<div class="none">${left.length ? "None match this filter" : "Nothing left behind"}</div>`}
+        <hr>
+        <div class="tline"><span>CART VALUE</span><span>${money(cartV)}</span></div>
+        <div class="tline"><span>EBAY FEES ${S.fee}%</span><span>-${money(fees)}</span></div>
+        ${tags ? `<div class="tline"><span>TAG PRICES</span><span>-${money(tags)}</span></div>` : ""}
+        <div class="tline b"><span>NET PROFIT</span><span>${money(cartV - fees - tags)}</span></div>
+        <div class="tline miss"><span>MISSED</span><span>${money(missed)}</span></div>
+        ${best ? `<div class="tline m"><span>BEST BET LEFT</span><span>${esc(shortName(best.name).slice(0,16))} ${money(best.typ)} @ ${sp(best)}%</span></div>` : ""}
+        <div class="legend">** over alert · ? authenticate · x passed<br>SELL = chance to sell within 90 days. Tap any line for details.</div>
+      </div></div></div>`;
+  }
+
+  // ---------- item card (swipe deck) ----------
+  function openDeck(ids, id){
+    ids = ids.filter(x => S.items.some(i => i.id === x));
+    if (!ids.length) return;
+    deck = { ids, idx: Math.max(0, ids.indexOf(id)) };
+    render(); $("#detail").scrollTop = 0;
+  }
+  function closeDeck(){ deck = null; render(); }
+  function renderDetail(){
+    const el = $("#detail");
+    if (!deck) { el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    const n = deck.ids.length;
+    const top = (label) => `<div class="dtop"><button class="back" data-act="close-deck">← Back</button><span class="count">${label}</span></div>
+      <div class="progress"><i style="width:${Math.round(100 * Math.min(deck.idx + 1, n) / n)}%"></i></div>`;
+    if (deck.idx >= n) {
+      el.innerHTML = `<div class="wrap">${top(`${n} of ${n}`)}<div class="dend"><b>That's the pile</b><span class="muted">You've gone through every item here.</span><button data-act="close-deck">Back to the list</button></div></div>`;
+      return;
+    }
+    const it = S.items.find(i => i.id === deck.ids[deck.idx]);
+    if (!it) { deck.idx++; return renderDetail(); }
+    const s = shotOf(it.shot), d = demandOf(it), dup = dupOf(it), v = it.verified;
+    const [gcls, gword] = d ? grade(d.p) : ["",""];
+    // zoomed crop centered on the item
+    const x = it.x ?? 50, y = it.y ?? 50, scale = it.x == null ? 1 : 2.3;
+    const ar = s?.ar || 4/3;
+    let pic = "";
+    if (s?.example) pic = `<div style="position:relative;width:100%;aspect-ratio:${ar}">${exampleScene(s.id)}</div>`;
+    else { const u = s ? imgURL(s.id + ":" + (it.frame || 0)) : null; pic = u ? `<img src="${u}" alt="">` : s?.thumb ? `<img src="${s.thumb}" alt="">` : ""; }
+    const tags = [
+      it.typ >= S.target ? `<span class="hit">Over ${money(S.target)} alert</span>` : "",
+      it.grab ? `<span class="grab">In cart</span>` : it.pass ? `<span>Passed</span>` : "",
+      v ? `<span class="${v.verdict === "reproduction" ? "fake" : v.verdict === "unclear" ? "check" : "hit"}">${VLABEL[v.verdict]}</span>` : it.verify ? `<span class="check">Authenticate</span>` : "",
+      `<span>${it.conf} confidence</span>`
+    ].join("");
+    const n2 = it.tag == null ? null : it.typ * (1 - (S.fee||0)/100) - (+it.tag||0);
+    el.innerHTML = `<div class="wrap">
+      ${top(`${deck.idx + 1} of ${n}`)}
+      <div class="deckwrap">${deck.idx < n - 1 ? '<div class="ghost"></div>' : ""}
+      <article class="dcard" id="dcard">
+        <div class="stamp grab">GRAB</div><div class="stamp pass">PASS</div>
+        <div class="zoom"><div class="ztag">${tags}</div>
+          <div class="zin" style="transform:translate(-${x}%,-${y}%) scale(${scale});transform-origin:${x}% ${y}%">${pic}</div></div>
+        <div class="dbody">
+          <div class="lotlabel">LOT ${Math.max(1, shotItems(shotOf(it.shot)).sort(SORTS.value).indexOf(it) + 1)}${s ? " · " + esc(shotTitle(s)).toUpperCase() : ""}</div>
+          <div class="dname"><h2>${esc(it.name)}</h2><div class="amt tnum ${it.typ >= S.target ? "hit" : ""}">${money(it.typ)}</div></div>
+          <div class="dmeta">Sold for ${money(it.low)}–${money(it.high)} · ${esc(it.where)}${it.details ? `<br>${esc(it.details)}` : ""}</div>
+          ${d ? `<div class="odds ${gcls}">
+            <div class="ohead"><span>Chance to sell in 90 days</span><b class="tnum">${d.p}%</b></div>
+            <div class="bar"><i class="fill" style="width:${d.p}%"></i></div>
+            <div class="stats"><span><b class="tnum">${d.sold != null ? (d.real ? "" : "~") + d.sold.toLocaleString("en-US") : "–"}</b>sold</span><span><b class="tnum">${d.listed != null ? (d.real ? "" : "~") + d.listed.toLocaleString("en-US") : "–"}</b>for sale now</span><span><b class="g">${gword}</b>${d.real ? "your count" : "estimate"}</span></div>
+            ${it.showCounts ? `<div class="counts-form"><span style="width:100%">Open <b>Sold</b> and <b>For sale</b> below and type the result counts eBay shows.</span>
+              <label for="rs">Sold</label><input id="rs" data-a="rsold" type="number" inputmode="numeric" min="0" value="${it.realSold ?? ""}">
+              <label for="rl">For sale</label><input id="rl" data-a="rlisted" type="number" inputmode="numeric" min="0" value="${it.realListed ?? ""}"></div>`
+              : `<div class="foot"><span>${d.real ? "From the counts you entered." : "Claude's estimate."}</span><button data-act="counts">${d.real ? "Edit counts" : "Enter real counts"}</button></div>`}
+          </div>` : ""}
+          ${it.checking ? `<div class="flag"><p>Checking your close-up…</p></div>` : it.verify ? `<div class="flag"><p><b>Authenticate:</b> ${esc(it.verify.ask)}</p><button data-act="verify">Take close-up</button><button class="plain" data-act="skipverify">Skip</button></div>` : ""}
+          ${dup ? `<div class="flag dup"><p>Looks like the same item as <b>${esc(shortName(dup.name))}</b> (${money(dup.typ)}) from another shelf.</p><button data-act="merge" data-o="${dup.id}">Merge</button><button class="plain" data-act="keepboth">Keep both</button></div>` : ""}
+          ${v?.note ? `<div class="vnote${v.verdict === "reproduction" ? " fake" : ""}"><b>${VLABEL[v.verdict]}:</b> ${esc(v.note)}</div>` : ""}
+          <div class="dlinks">
+            <a class="sold" href="${soldUrl(it.q)}" target="_blank" rel="noopener">Sold ↗</a>
+            <a class="forsale" href="${forSaleUrl(it.q)}" target="_blank" rel="noopener">For sale ↗</a>
+            <label class="tagin" for="tagp">Tag $<input id="tagp" data-a="tag" type="number" inputmode="decimal" min="0" step="0.5" value="${it.tag ?? ""}" placeholder="0"></label>
+            ${n2 == null ? "" : `<span class="net ${n2 >= 0 ? "pos" : "neg"}">${n2 >= 0 ? "+" : "−"}${money(Math.abs(n2))} net</span>`}
+          </div>
+        </div>
+      </article></div>
+      <div class="dacts">
+        <button class="pass${it.pass ? " on" : ""}" data-act="pass" aria-label="Pass"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        <button class="ver" data-act="verify" aria-label="Take a close-up to verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></button>
+        <button class="grab${it.grab ? " on" : ""}" data-act="grab" aria-label="Grab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button>
+      </div>
+      <div class="dhint">Swipe right to grab, left to pass</div>
+      <button class="dremove" data-act="del">Remove this item</button>
+    </div>`;
+  }
+  function decide(kind){
+    const it = deck && S.items.find(i => i.id === deck.ids[deck.idx]); if (!it) return;
+    if (kind === "grab") { it.grab = true; it.pass = false; } else { it.pass = true; it.grab = false; }
+    save(); deck.idx++; render(); $("#detail").scrollTop = 0;
+  }
+  // swipe gestures
+  let drag = null;
+  document.addEventListener("pointerdown", e => {
+    const c = e.target.closest("#dcard"); if (!c || e.target.closest("input,a,button,select,label")) return;
+    drag = { x:e.clientX, y:e.clientY, dx:0, on:false, el:c, id:e.pointerId };
+  });
+  document.addEventListener("pointermove", e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.on) { if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { drag.on = true; drag.el.classList.add("dragging"); try { drag.el.setPointerCapture(e.pointerId); } catch {} } else return; }
+    drag.dx = dx;
+    drag.el.style.transform = `translateX(${dx}px) rotate(${dx / 22}deg)`;
+    drag.el.querySelector(".stamp.grab").style.opacity = clamp(dx / 100, 0, 1);
+    drag.el.querySelector(".stamp.pass").style.opacity = clamp(-dx / 100, 0, 1);
+  });
+  function endDrag(){
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (!d.on) return;
+    d.el.classList.remove("dragging");
+    if (Math.abs(d.dx) > 90) {
+      d.el.style.transform = `translateX(${d.dx > 0 ? 600 : -600}px) rotate(${d.dx > 0 ? 20 : -20}deg)`;
+      setTimeout(() => decide(d.dx > 0 ? "grab" : "pass"), 170);
+    } else {
+      d.el.style.transform = "";
+      d.el.querySelectorAll(".stamp").forEach(s => s.style.opacity = 0);
+    }
+  }
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
+
+  // ---------- settings ----------
+  function renderSettings(){
+    if ($("#settings").hidden) return;
+    if (document.activeElement !== $("#target")) $("#target").value = S.target;
+    if (document.activeElement !== $("#minlog")) $("#minlog").value = S.min;
+    $("#fee").value = S.fee; $("#careful").checked = !!S.careful; $("#livechk").checked = !!S.live; if (document.activeElement !== $("#apikey")) $("#apikey").value = S.key || "";
+    $("#target-chips").innerHTML = [25,50,75,100,150,250].map(v => `<button data-act="chip" data-k="target" data-v="${v}" aria-pressed="${+S.target===v}">$${v}</button>`).join("");
+    $("#min-chips").innerHTML = [0,5,10,15,20,30].map(v => `<button data-act="chip" data-k="min" data-v="${v}" aria-pressed="${+S.min===v}">${v ? "$" + v : "Log all"}</button>`).join("");
+  }
+  const openSettings = on => { $("#settings").hidden = !on; $("#overlay").hidden = !on; $("#confirm-new").hidden = true; render(); };
+
+  // ---------- events ----------
+  document.addEventListener("click", e => {
+    const tab = e.target.closest(".tabs button"); if (tab) { view = tab.dataset.view; if (view === "scan") S.viewShot = null; deck = null; render(); window.scrollTo(0, 0); if (view === "scan" && camWanted()) startCamera(); return; }
+    const t = e.target.closest("[data-act]"); if (!t) return;
+    const a = t.dataset.act;
+    const cur = deck && S.items.find(i => i.id === deck.ids[deck.idx]);
+    switch (a) {
+      case "open": openDeck((t.dataset.deck || t.dataset.id).split(","), t.dataset.id); break;
+      case "close-deck": closeDeck(); break;
+      case "grab": decide("grab"); break;
+      case "pass": decide("pass"); break;
+      case "verify": if (cur) startVerify(cur.id); break;
+      case "skipverify": if (cur) { cur.verify = null; save(); render(); } break;
+      case "keepboth": if (cur) { cur.dupOk = true; save(); render(); } break;
+      case "counts": if (cur) { cur.showCounts = !cur.showCounts; save(); render(); } break;
+      case "del": if (cur) { S.items = S.items.filter(i => i !== cur); deck.ids.splice(deck.idx, 1); save(); if (!deck.ids.length) deck = null; render(); } break;
+      case "merge": if (cur) {
+        const o = S.items.find(i => i.id === t.dataset.o);
+        if (o) { const rank = { high:3, medium:2, low:1 };
+          const [keep, drop] = (rank[cur.conf]||0) > (rank[o.conf]||0) || cur.verified ? [cur, o] : [o, cur];
+          keep.grab = keep.grab || drop.grab; if (keep.tag == null) keep.tag = drop.tag;
+          if (!keep.verified && drop.verified) { keep.verified = drop.verified; keep.verify = null; }
+          S.items = S.items.filter(i => i !== drop);
+          const di = deck.ids.indexOf(drop.id); if (di >= 0) { deck.ids.splice(di, 1); if (di < deck.idx) deck.idx--; }
+          if (!deck.ids.includes(keep.id)) deck.ids.splice(deck.idx, 0, keep.id);
+        }
+        save(); render(); } break;
+      case "retry": retry(shotOf(t.dataset.shot)); break;
+      case "retry-all": paused = false; S.shots.filter(s => s.status === "error" && blobs.has(s.id)).forEach(s => s.status = "queued"); pump(); render(); break;
+      case "goto": S.viewShot = t.dataset.shot; frameIdx = 0; view = "scan"; save(); render(); window.scrollTo(0, 0); break;
+      case "shot-step": { const list = shelfShots(), i = list.indexOf(curShot()) + +t.dataset.d; if (list[i]) { S.viewShot = list[i].id; frameIdx = 0; save(); render(); } } break;
+      case "live": S.viewShot = null; save(); render(); startCamera(); window.scrollTo(0, 0); break;
+      case "cam-start": unlockAudio(); startCamera(); break;
+      case "shutter": unlockAudio(); view = "scan"; S.viewShot = null; if (!stream) { render(); startCamera(); } else captureNow = true; render(); break;
+      case "live-toggle": S.live = !S.live; save(); render(); break;
+      case "frame-step": frameIdx += +t.dataset.d; render(); break;
+      case "rfilter": rFilter = t.dataset.f; render(); break;
+      case "done": view = "receipt"; deck = null; render(); window.scrollTo(0, 0); break;
+      case "settings": openSettings(true); break;
+      case "close-settings": openSettings(false); break;
+      case "chip": S[t.dataset.k] = +t.dataset.v; save(); render(); break;
+      case "new-hunt": $("#confirm-new").hidden = false; break;
+      case "new-no": $("#confirm-new").hidden = true; break;
+      case "new-yes": {
+        const keep = { target:S.target, min:S.min, fee:S.fee, careful:S.careful, live:S.live, key:S.key };
+        S = { example:false, ...keep, shots:[], items:[], viewShot:null }; blobs.clear(); paused = false; deck = null; view = "scan"; livePins = []; liveShot = null; lastScanGrid = null;
+        clearImgs(); save(); openSettings(false); } break;
+    }
+  });
+  document.addEventListener("change", e => {
+    const t = e.target, cur = deck && S.items.find(i => i.id === deck.ids[deck.idx]);
+    if (t.id === "rsort") { rSort = t.value; render(); return; }
+    if (t.id === "target") { S.target = Math.max(1, +t.value || 100); save(); render(); return; }
+    if (t.id === "minlog") { S.min = Math.max(0, +t.value || 0); save(); render(); return; }
+    if (t.id === "fee") { S.fee = clamp(+t.value || 0, 0, 40); save(); render(); return; }
+    if (t.id === "apikey") { S.key = t.value.trim(); paused = false; save(); render(); pump(); return; }
+    if (t.id === "livechk") { S.live = t.checked; save(); render(); return; }
+    if (t.id === "careful") { S.careful = t.checked; save(); return; }
+    if (!cur) return;
+    const a = t.dataset.a;
+    if (a === "tag") { cur.tag = t.value === "" ? null : Math.max(0, +t.value); save(); render(); }
+    if (a === "rsold" || a === "rlisted") {
+      const v = t.value === "" ? null : cnt(t.value);
+      if (a === "rsold") cur.realSold = v; else cur.realListed = v;
+      if (cur.realSold != null && cur.realListed != null) cur.showCounts = false;
+      save(); render();
+      const next = document.getElementById(a === "rsold" ? "rl" : "rs");
+      if (next && next.value === "") next.focus();
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") { if (!$("#settings").hidden) openSettings(false); else if (deck) closeDeck(); }
+    if (deck && !e.target.closest("input,select") && (e.key === "ArrowRight" || e.key === "ArrowLeft")) decide(e.key === "ArrowRight" ? "grab" : "pass");
+  });
+
+  // Scans still pending from an earlier visit can't be resent (full images aren't kept between visits).
+  S.shots = S.shots.filter(s => !s.loading);
+  S.shots.forEach(s => { if (s.status === "queued" || s.status === "working") { s.status = "error"; s.err = "Retake this one"; } });
+  S.items.forEach(i => { i.checking = false; });
+  S.viewShot = null;
+  render();
+  if (camWanted()) startCamera();
+})();
+</script>
+</body>
+</html>

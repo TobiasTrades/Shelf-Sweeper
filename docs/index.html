@@ -449,6 +449,7 @@ select,.btn,.setrow input[type=number],.counts-form input{border-radius:3px}
 <section class="panel" id="settings" hidden aria-label="Settings">
   <div class="wrap">
     <h2>Settings</h2>
+    <div class="issue" id="key-need" hidden>To scan, Shelf Sweeper needs your own Claude API key. Paste it in the box below, then tap Close.</div>
     <div class="setrow" style="display:grid;gap:8px"><label for="apikey">Claude API key<small>Get one at console.anthropic.com → API Keys. It stays on this phone. Set a monthly spend limit there so costs never surprise you.</small></label><input id="apikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" style="width:100%;border:1px solid var(--line);border-radius:3px;padding:9px 10px;background:var(--soft);color:var(--ink)"></div>
     <div class="setrow"><label for="target">Alert price<small>Pop up anything that sells for this or more</small></label><span>$<input id="target" type="number" inputmode="numeric" min="1" step="5"></span></div>
     <div class="setchips" id="target-chips"></div>
@@ -1226,7 +1227,7 @@ verdict is one of: confirmed, revised, reproduction, unclear.`;
     if ($("#settings").hidden) return;
     if (document.activeElement !== $("#target")) $("#target").value = S.target;
     if (document.activeElement !== $("#minlog")) $("#minlog").value = S.min;
-    $("#fee").value = S.fee; $("#careful").checked = !!S.careful; $("#livechk").checked = !!S.live; if (document.activeElement !== $("#apikey")) $("#apikey").value = S.key || "";
+    $("#fee").value = S.fee; $("#careful").checked = !!S.careful; $("#livechk").checked = !!S.live; if (document.activeElement !== $("#apikey")) $("#apikey").value = S.key || ""; $("#key-need").hidden = aiOn();
     $("#target-chips").innerHTML = [25,50,75,100,150,250].map(v => `<button data-act="chip" data-k="target" data-v="${v}" aria-pressed="${+S.target===v}">$${v}</button>`).join("");
     $("#min-chips").innerHTML = [0,5,10,15,20,30].map(v => `<button data-act="chip" data-k="min" data-v="${v}" aria-pressed="${+S.min===v}">${v ? "$" + v : "Log all"}</button>`).join("");
   }
